@@ -99,7 +99,7 @@ B_critic_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999)
 for var in tf.global_variables():
 	print(var.name, ': ', var.get_shape().as_list())
 
-saver = tf.train.Saver(max_to_keep=10)
+saver = tf.train.Saver(max_to_keep=40)
 
 
 ####################### PREPARE FOLDER ###############################
@@ -163,6 +163,7 @@ def write_summary(writer, val_dict, step):
 sess = tf.Session()
 sess.run(tf.global_variables_initializer())
 
+time_to_save = list(range(1,5)) + list(range(6, 20, 2)) + list(range(20, 100, 5)) + list(range(100, 1001, 10))
 begin_time = time.time()
 for _epoch in range(opt.num_epochs):
 	if _epoch < 100:
@@ -198,6 +199,7 @@ for _epoch in range(opt.num_epochs):
 		print("A_gen_loss: %f ## B_gen_loss: %f ## A_critic_loss: %f ## B_critic_loss: %f\n"%(
 				A_gen_loss_val, B_gen_loss_val, A_critic_loss_val, B_critic_loss_val))
 		print("Time is %f"%(time.time() - begin_time))
-	saver.save(sess, join(checkpoints_dir, 'epoch_%d.cpkt'%(_epoch+1)))
+	if _epoch+1 in time_to_save:
+		saver.save(sess, join(checkpoints_dir, 'epoch_%d.cpkt'%(_epoch+1)))
 
 
