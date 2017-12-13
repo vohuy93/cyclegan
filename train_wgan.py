@@ -28,6 +28,7 @@ parser.add_argument('--num_epochs', type=int, required=True, help='Number of tra
 parser.add_argument('--n_critics', type=int, default=5, help='Number of discriminator updates in each iteration')
 parser.add_argument('--top_dir', type=str, required=True, help='The top folder in which training infos are saved')
 parser.add_argument('--learning_rate', type=float, default=0.0001, help='Learning rate')
+parser.add_argument('--skip', type=lambda x: x == 'True', default=False, help='Whether to use a skip connection in generators')
 
 
 opt = parser.parse_args()
@@ -52,8 +53,8 @@ generator = eval('models.generator_%d'%opt.image_size)
 input_tensor_A = tf.placeholder(tf.float32, [None, opt.image_size, opt.image_size, 3])
 input_tensor_B = tf.placeholder(tf.float32, [None, opt.image_size, opt.image_size, 3])
 
-fake_B = generator(input_tensor_A, 'generator_B')
-fake_A = generator(input_tensor_B, 'generator_A')
+fake_B = generator(input_tensor_A, 'generator_B', skip=opt.skip)
+fake_A = generator(input_tensor_B, 'generator_A', skip=opt.skip)
 cycle_A = generator(fake_B, 'generator_A', reuse=True)
 cycle_B = generator(fake_A, 'generator_B', reuse=True)
 
