@@ -55,8 +55,8 @@ input_tensor_B = tf.placeholder(tf.float32, [None, opt.image_size, opt.image_siz
 
 fake_B = generator(input_tensor_A, 'generator_B', skip=opt.skip)
 fake_A = generator(input_tensor_B, 'generator_A', skip=opt.skip)
-cycle_A = generator(fake_B, 'generator_A', reuse=True)
-cycle_B = generator(fake_A, 'generator_B', reuse=True)
+cycle_A = generator(fake_B, 'generator_A', reuse=True, skip=opt.skip)
+cycle_B = generator(fake_A, 'generator_B', reuse=True, skip=opt.skip)
 
 
 # define discriminator_A's loss
