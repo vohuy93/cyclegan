@@ -29,6 +29,7 @@ parser.add_argument('--n_critics', type=int, default=5, help='Number of discrimi
 parser.add_argument('--top_dir', type=str, required=True, help='The top folder in which training infos are saved')
 parser.add_argument('--learning_rate', type=float, default=0.0001, help='Learning rate')
 parser.add_argument('--skip', type=lambda x: x == 'True', default=False, help='Whether to use a skip connection in generators')
+parser.add_argument('--optimizer', type=str, default='RMSProp', help='Type of optimizer used')
 
 
 opt = parser.parse_args()
@@ -90,10 +91,16 @@ B_critic_clip = [var.assign(tf.clip_by_value(var, -0.01, 0.01)) for var in B_cri
 
 
 learning_rate = tf.placeholder(tf.float32, [])
-A_gen_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999).minimize(A_gen_loss, var_list=A_gen_var)
-B_gen_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999).minimize(B_gen_loss, var_list=B_gen_var)
-A_critic_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999).minimize(A_critic_loss, var_list=A_critic_var)
-B_critic_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999).minimize(B_critic_loss, var_list=B_critic_var)
+if opt.optimizer == 'Adam':
+	A_gen_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999).minimize(A_gen_loss, var_list=A_gen_var)
+	B_gen_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999).minimize(B_gen_loss, var_list=B_gen_var)
+	A_critic_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999).minimize(A_critic_loss, var_list=A_critic_var)
+	B_critic_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999).minimize(B_critic_loss, var_list=B_critic_var)
+else:
+	A_gen_trainer = tf.train.RMSPropOptimizer(learning_rate).minimize(A_gen_loss, var_list=A_gen_var)
+	B_gen_trainer = tf.train.RMSPropOptimizer(learning_rate).minimize(B_gen_loss, var_list=B_gen_var)
+	A_critic_trainer = tf.train.RMSPropOptimizer(learning_rate).minimize(A_critic_loss, var_list=A_critic_var)
+	B_critic_trainer = tf.train.RMSPropOptimizer(learning_rate).minimize(B_critic_loss, var_list=B_critic_var)
 
 
 for var in tf.global_variables():
@@ -173,15 +180,16 @@ for _epoch in range(opt.num_epochs):
 	for _iteration in range(opt.num_iterations):
 		# train critics
 		for _n_critics in range(opt.n_critics):
-			_, A_critic_loss_val = sess.run([A_critic_trainer, A_critic_loss],
+			_, A_critic_loss_val, _, B_critic_loss_val = sess.run([A_critic_trainer, A_critic_loss, B_critic_trainer, B_critic_loss],
 											feed_dict={input_tensor_A:trainA.get_batch(1,True),
 													   input_tensor_B:trainB.get_batch(1,True),
 													   learning_rate:current_lr})
+
 			sess.run(A_critic_clip)
-			_, B_critic_loss_val = sess.run([B_critic_trainer, B_critic_loss],
-										feed_dict={input_tensor_A:trainA.get_batch(1,True),
-												   input_tensor_B:trainB.get_batch(1,True),
-												   learning_rate:current_lr})
+			# _, B_critic_loss_val = sess.run([B_critic_trainer, B_critic_loss],
+			# 							feed_dict={input_tensor_A:trainA.get_batch(1,True),
+			# 									   input_tensor_B:trainB.get_batch(1,True),
+			# 									   learning_rate:current_lr})
 			sess.run(B_critic_clip)
 
 		_, A_gen_loss_val, A_critic_loss_val, _, B_gen_loss_val, B_critic_loss_val = \

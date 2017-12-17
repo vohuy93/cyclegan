@@ -52,16 +52,20 @@ saver = tf.train.Saver()
 with tf.Session() as sess:
 	saver.restore(sess, join(opt.folder, 'checkpoints/epoch_' + str(opt.cp) + '.cpkt'))
 	for i in range(10):
-		image_A = testA.get_batch(1, True)
-		image_B = testB.get_batch(1, True)
-		outputB, outputA = sess.run([fake_B, fake_A], feed_dict={input_tensor_A:image_A, input_tensor_B:image_B})
+		image_A = testA.get_batch(1,True)
+		image_B = testB.get_batch(1,True)
+		outputB, outputA, outputB_cycle, outputA_cycle = sess.run([fake_B, fake_A, cycle_B, cycle_A], feed_dict={input_tensor_A:image_A, input_tensor_B:image_B})
 		plt.imshow((image_A[0]+1.)/2)
 		plt.show()
 		plt.imshow((outputB[0]+1.)/2)
 		plt.show()
+		plt.imshow((outputA_cycle[0]+1.)/2)
+		plt.show()
 		plt.imshow((image_B[0]+1.)/2)
 		plt.show()
 		plt.imshow((outputA[0]+1.)/2)
+		plt.show()
+		plt.imshow((outputB_cycle[0]+1.)/2)
 		plt.show()
 
 
