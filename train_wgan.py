@@ -27,7 +27,7 @@ parser.add_argument('--lambda_cycle', type=float, default=10.0, help='Weight of 
 parser.add_argument('--num_epochs', type=int, required=True, help='Number of training epochs')
 parser.add_argument('--n_critics', type=int, default=5, help='Number of discriminator updates in each iteration')
 parser.add_argument('--top_dir', type=str, required=True, help='The top folder in which training infos are saved')
-parser.add_argument('--learning_rate', type=float, default=0.0001, help='Learning rate')
+parser.add_argument('--learning_rate', type=float, default=0.0002, help='Learning rate')
 parser.add_argument('--skip', type=lambda x: x == 'True', default=False, help='Whether to use a skip connection in generators')
 parser.add_argument('--optimizer', type=str, default='RMSProp', help='Type of optimizer used')
 
@@ -87,6 +87,14 @@ B_critic_var = [var for var in tf.global_variables() if 'discriminator_B' in var
 
 A_critic_clip = [var.assign(tf.clip_by_value(var, -0.01, 0.01)) for var in A_critic_var]
 B_critic_clip = [var.assign(tf.clip_by_value(var, -0.01, 0.01)) for var in B_critic_var]
+
+A_critic_gradient = tf.gradients(A_critic_loss, A_critic_var)
+B_critic_gradient = tf.gradients(B_critic_loss, B_critic_var)
+# print(A_critic_gradient[3].name)
+# print(len(B_critic_gradient))
+print([var.name for var in A_critic_var])
+print([var.name for var in B_critic_var])
+exit(0)
 
 
 
@@ -176,25 +184,22 @@ for _epoch in range(opt.num_epochs):
 	if _epoch < 100:
 		current_lr = opt.learning_rate
 	else:
-		current_lr = opt.learning_rate - opt.learning_rate * (_epoch - 100)/100
+		current_lr = opt.learning_rate - opt.learning_rate * (_epoch - 100)/(opt.num_epochs - 100)
 	for _iteration in range(opt.num_iterations):
-		# train critics
+		print("Traing epoch %d, iteration %d"%(_epoch, _iteration))
 		for _n_critics in range(opt.n_critics):
 			_, A_critic_loss_val, _, B_critic_loss_val = sess.run([A_critic_trainer, A_critic_loss, B_critic_trainer, B_critic_loss],
 											feed_dict={input_tensor_A:trainA.get_batch(1,True),
 													   input_tensor_B:trainB.get_batch(1,True),
 													   learning_rate:current_lr})
-
+			print("Critic loss A %f, crictic loss B %f"%(A_critic_loss_val, B_critic_loss_val))
 			sess.run(A_critic_clip)
-			# _, B_critic_loss_val = sess.run([B_critic_trainer, B_critic_loss],
-			# 							feed_dict={input_tensor_A:trainA.get_batch(1,True),
-			# 									   input_tensor_B:trainB.get_batch(1,True),
-			# 									   learning_rate:current_lr})
 			sess.run(B_critic_clip)
 
-		_, A_gen_loss_val, A_critic_loss_val, _, B_gen_loss_val, B_critic_loss_val = \
+		_, A_gen_loss_val, A_critic_loss_val, _, B_gen_loss_val, B_critic_loss_val, A_critic_gradient_val, B_critic_gradient_val = \
 											   sess.run([A_gen_trainer, A_gen_loss, A_critic_loss,
-														 B_gen_trainer, B_gen_loss, B_critic_loss],
+														 B_gen_trainer, B_gen_loss, B_critic_loss,
+														 A_critic_gradient, B_critic_gradient],
 												feed_dict={input_tensor_A:trainA.get_batch(1),
 														   input_tensor_B:trainB.get_batch(1),
 														   learning_rate:current_lr})
@@ -203,6 +208,10 @@ for _epoch in range(opt.num_epochs):
 		write_summary(summary_writer, 
 			{'A_gen_loss':A_gen_loss_val, 'B_gen_loss':B_gen_loss_val, 'A_critic_loss':A_critic_loss_val, 'B_critic_loss':B_critic_loss_val}, 
 			_iteration + _epoch * opt.num_iterations + 1)
+		write_summary(summary_writer,
+			{'A_critic_gradient_%d'%(i+1):np.mean(A_critic_gradient_val[i]) for i in range(16)}, _iteration + _epoch * opt.num_iterations + 1)
+		write_summary(summary_writer,
+			{'B_critic_gradient_%d'%(i+1):np.mean(B_critic_gradient_val[i]) for i in range(16)}, _iteration + _epoch * opt.num_iterations + 1)
 
 		print("A_gen_loss: %f ## B_gen_loss: %f ## A_critic_loss: %f ## B_critic_loss: %f\n"%(
 				A_gen_loss_val, B_gen_loss_val, A_critic_loss_val, B_critic_loss_val))
