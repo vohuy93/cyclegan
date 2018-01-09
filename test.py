@@ -31,12 +31,17 @@ opt_dict = vars(opt)
 
 trained_args = pickle.load(open(join(opt.folder, 'ops.pickle'), 'rb'))
 for arg in trained_args:
+<<<<<<< Updated upstream
     if arg not in ['folder', 'cp']:
         opt_dict[arg] = trained_args[arg]
 
 print("Parameters of the model are: ...")
 for arg in opt_dict:
 	print(arg + ": " + str(opt_dict[arg]))
+=======
+    if arg not in ['folder', 'cp', 'images_dir']:
+        opt_dict[arg] = trained_args[arg]
+>>>>>>> Stashed changes
 
 
 ####################### READ DATA ####################################

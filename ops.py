@@ -213,6 +213,29 @@ def conv_instn_lrelu(input, kernel_shape, scope_name, stride=1, stddev=0.02,
         instn = instance_norm(conv, 'instance_norm')
         return lrelu(instn, scope_name='lrelu')
 
+def conv_lrelu(input, kernel_shape, scope_name, stride=1, stddev=0.02,
+                    const_bias=0.0, padding='REFLECT'):
+    """
+    Create a block convolution-instance_norm-lrelu.
+
+    Parameters:
+
+        input (4-dimensional Tensor): input
+        kernel_shape (list): shape of convolution filters of the form 
+            [dim_width, dim_height, input_depth, output_depth]
+        scope_name (string): name of scope of all variables created by the 
+            function
+        strides (int): (optional) 2d spatial stride
+        stddev (float): (optional) standard deviation of random initialized 
+            parameters
+        const_bias (float): (optional) initial value of the bias term
+        padding (string): (optional) type of padding method to use
+    """
+
+    with tf.variable_scope(scope_name):
+        conv = conv2d(input, kernel_shape, 'conv', stride, padding=padding)
+        return lrelu(conv, scope_name='lrelu')
+
 def convt_instn_relu(input, kernel_shape, output_shape, scope_name, 
                      stride=1, stddev=0.02, const_bias=0.0, padding='REFLECT'):
     """

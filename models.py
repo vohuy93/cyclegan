@@ -64,9 +64,37 @@ def generator_256(input, scope_name, reuse=False, skip=False):
 
 def discriminator(input, scope_name, reuse=False):
 	with tf.variable_scope(scope_name, reuse=reuse):
+<<<<<<< Updated upstream
 		c64 = ops.lrelu(ops.conv2d(input, [4,4,3,64], 'c64/conv', 2, padding="SAME"), 'c64/lrelu')
 		c128 = ops.conv_instn_lrelu(c64, [4,4,64,128], 'c128', 2, padding="SAME")
 		c256 = ops.conv_instn_lrelu(c128, [4,4,128,256], 'c256', 2, padding="SAME")
 		c512 = ops.conv_instn_lrelu(c256, [4,4,256,512], 'c512', 1, padding="SAME")
+=======
+		c64 = ops.lrelu(ops.conv2d(input, [4,4,3,64], 'c64/conv', 2, 
+									padding="SAME"), 'c64/lrelu')
+		c128 = ops.conv_instn_lrelu(c64, [4,4,64,128], 'c128', 2, 
+									padding="SAME")
+		c256 = ops.conv_instn_lrelu(c128, [4,4,128,256], 'c256', 2,
+									padding="SAME")
+		c512 = ops.conv_instn_lrelu(c256, [4,4,256,512], 'c512', 1,
+									padding="SAME")
+>>>>>>> Stashed changes
 		return ops.conv2d(c512, [4,4,512,1], 'output', 1, padding="SAME")
+
+def discriminator_improved_wgan(input, scope_name, reuse=False):
+	with tf.variable_scope(scope_name, reuse=reuse):
+		c64 = ops.lrelu(ops.conv2d(input, [4,4,3,64], 'c64/conv', 2, 
+									padding="SAME"), 'c64/lrelu')
+		c128 = ops.conv_lrelu(c64, [4,4,64,128], 'c128', 2, 
+									padding="SAME")
+		c256_1 = ops.conv_lrelu(c128, [4,4,128,256], 'c256_1', 2,
+									padding="SAME")
+		c256_2 = ops.conv_lrelu(c256_1, [4,4,256,256], 'c256_2', 2,
+									padding="SAME")
+		c512 = ops.conv_lrelu(c256_2, [4,4,256,512], 'c512', 2,
+									padding="SAME")
+		c512_shape = c512.get_shape().as_list()
+		c_reshape = tf.reshape(c512, [-1, c512_shape[1] * c512_shape[2] * c512_shape[3]])
+		return tf.nn.sigmoid(ops.linear(c_reshape, 1, 'output'))
+		
 
