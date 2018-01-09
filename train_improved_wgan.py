@@ -63,13 +63,15 @@ cycle_B = generator(fake_A, 'generator_B', reuse=True, skip=opt.skip)
 
 # define discriminator_A's loss
 eps_A_critic = np.array(np.random.uniform(0,1,[opt.batch_size]), dtype=np.float32)
-x_bar_A_critic = tf.transpose(tf.transpose(input_tensor_A) * eps_A_critic) + tf.transpose(tf.transpose(fake_A) * (1-eps_A_critic))
+x_hat_A_critic = tf.transpose(tf.transpose(input_tensor_A) * eps_A_critic) + \
+				 tf.transpose(tf.transpose(fake_A) * (1 - eps_A_critic))
 
-fake_A_critic = models.discriminator_improved_wgan(x_bar_A_critic, 'discriminator_A')
+fake_A_critic = models.discriminator_improved_wgan(fake_A, 'discriminator_A')
 real_A_critic = models.discriminator_improved_wgan(input_tensor_A, 'discriminator_A', reuse=True)
-fake_A_gen = models.discriminator_improved_wgan(fake_A, 'discriminator_A', reuse=True)
+fake_hat_A_critic = models.discriminator_improved_wgan(x_hat_A_critic, 'discriminator_A', reuse=True)
 
-grad_A_critic = tf.gradients(tf.reshape(fake_A_critic, [-1]), x_bar_A_critic)
+
+grad_A_critic = tf.gradients(fake_hat_A_critic, x_hat_A_critic)
 grad_constraint_A_critic = tf.reduce_mean([(tf.norm(grad_A_critic[0][i]) - 1)**2 for i in range(opt.batch_size)])
 
 A_critic_loss = tf.reduce_mean(fake_A_critic - real_A_critic) + opt.lambda_grad * grad_constraint_A_critic
@@ -77,13 +79,15 @@ A_critic_loss = tf.reduce_mean(fake_A_critic - real_A_critic) + opt.lambda_grad 
 
 # define discriminator_B's loss
 eps_B_critic = np.array(np.random.uniform(0,1,[opt.batch_size]), dtype=np.float32)
-x_bar_B_critic = tf.transpose(tf.transpose(input_tensor_B) * eps_B_critic) + tf.transpose(tf.transpose(fake_B) * (1-eps_B_critic))
+x_hat_B_critic = tf.transpose(tf.transpose(input_tensor_B) * eps_B_critic) + \
+				 tf.transpose(tf.transpose(fake_B) * (1-eps_B_critic))
 
-fake_B_critic = models.discriminator_improved_wgan(x_bar_B_critic, 'discriminator_B')
+fake_B_critic = models.discriminator_improved_wgan(fake_B, 'discriminator_B')
 real_B_critic = models.discriminator_improved_wgan(input_tensor_B, 'discriminator_B', reuse=True)
-fake_B_gen = models.discriminator_improved_wgan(fake_B, 'discriminator_B', reuse=True)
+fake_hat_B_critic = models.discriminator_improved_wgan(x_hat_B_critic, 'discriminator_B', reuse=True)
 
-grad_B_critic = tf.gradients(tf.reshape(fake_B_critic, [-1]), x_bar_B_critic)
+
+grad_B_critic = tf.gradients(fake_hat_B_critic, x_hat_B_critic)
 grad_constraint_B_critic = tf.reduce_mean([(tf.norm(grad_B_critic[0][i]) - 1)**2 for i in range(opt.batch_size)])
 
 B_critic_loss = tf.reduce_mean(fake_B_critic - real_B_critic) + opt.lambda_grad * grad_constraint_B_critic
@@ -91,8 +95,8 @@ B_critic_loss = tf.reduce_mean(fake_B_critic - real_B_critic) + opt.lambda_grad 
 
 # define losses for generators
 cycle_loss = tf.reduce_mean(tf.abs(cycle_A - input_tensor_A)) + tf.reduce_mean(tf.abs(cycle_B - input_tensor_B))
-A_gen_loss =  opt.lambda_cycle * cycle_loss - tf.reduce_mean(fake_A_gen)
-B_gen_loss = opt.lambda_cycle * cycle_loss - tf.reduce_mean(fake_B_gen)
+A_gen_loss =  opt.lambda_cycle * cycle_loss - tf.reduce_mean(fake_A)
+B_gen_loss = opt.lambda_cycle * cycle_loss - tf.reduce_mean(fake_B)
 
 
 A_gen_var = [var for var in tf.global_variables() if 'generator_A' in var.name]
