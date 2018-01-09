@@ -64,12 +64,11 @@ def generator_256(input, scope_name, reuse=False, skip=False):
 
 def discriminator(input, scope_name, reuse=False):
 	with tf.variable_scope(scope_name, reuse=reuse):
-<<<<<<< Updated upstream
 		c64 = ops.lrelu(ops.conv2d(input, [4,4,3,64], 'c64/conv', 2, padding="SAME"), 'c64/lrelu')
 		c128 = ops.conv_instn_lrelu(c64, [4,4,64,128], 'c128', 2, padding="SAME")
 		c256 = ops.conv_instn_lrelu(c128, [4,4,128,256], 'c256', 2, padding="SAME")
 		c512 = ops.conv_instn_lrelu(c256, [4,4,256,512], 'c512', 1, padding="SAME")
-=======
+
 		c64 = ops.lrelu(ops.conv2d(input, [4,4,3,64], 'c64/conv', 2, 
 									padding="SAME"), 'c64/lrelu')
 		c128 = ops.conv_instn_lrelu(c64, [4,4,64,128], 'c128', 2, 
@@ -78,7 +77,6 @@ def discriminator(input, scope_name, reuse=False):
 									padding="SAME")
 		c512 = ops.conv_instn_lrelu(c256, [4,4,256,512], 'c512', 1,
 									padding="SAME")
->>>>>>> Stashed changes
 		return ops.conv2d(c512, [4,4,512,1], 'output', 1, padding="SAME")
 
 def discriminator_improved_wgan(input, scope_name, reuse=False):
