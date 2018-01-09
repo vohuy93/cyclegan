@@ -29,10 +29,14 @@ parser.add_argument('--cp', type=int, required=True)
 opt = parser.parse_args()
 opt_dict = vars(opt)
 
-trained_args = pickle.load(open(join(ops.folder, 'ops.pickle'), 'rb'))
+trained_args = pickle.load(open(join(opt.folder, 'ops.pickle'), 'rb'))
 for arg in trained_args:
-    if arg not in ['folder', 'cp', 'images_dir']:
-        ops_dict[arg] = trained_args[arg]
+    if arg not in ['folder', 'cp']:
+        opt_dict[arg] = trained_args[arg]
+
+print("Parameters of the model are: ...")
+for arg in opt_dict:
+	print(arg + ": " + str(opt_dict[arg]))
 
 
 ####################### READ DATA ####################################
@@ -47,10 +51,10 @@ generator = eval('models.generator_%d'%opt.image_size)
 input_tensor_A = tf.placeholder(tf.float32, [None, opt.image_size, opt.image_size, 3])
 input_tensor_B = tf.placeholder(tf.float32, [None, opt.image_size, opt.image_size, 3])
 
-fake_A = generator(input_tensor_B, 'generator_A')
-fake_B = generator(input_tensor_A, 'generator_B')
-cycle_A = generator(fake_B, 'generator_A', reuse=True)
-cycle_B = generator(fake_A, 'generator_B', reuse=True)
+fake_A = generator(input_tensor_B, 'generator_A', skip=opt.skip)
+fake_B = generator(input_tensor_A, 'generator_B', skip=opt.skip)
+cycle_A = generator(fake_B, 'generator_A', reuse=True, skip=opt.skip)
+cycle_B = generator(fake_A, 'generator_B', reuse=True, skip=opt.skip)
 
 saver = tf.train.Saver()
 with tf.Session() as sess:

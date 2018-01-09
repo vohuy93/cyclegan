@@ -19,21 +19,18 @@ import argparse
 
 ############################################# READ ARGUMENTS ###############################################################
 parser = argparse.ArgumentParser()
-parser.add_argument('--image_size', type=int, required=True, help='Dimension of input images, either 128 or 256')
-parser.add_argument('--trainA', type=str, required=True, help='Path to a npy file containing training images of A dataset')
-parser.add_argument('--trainB', type=str, required=True, help='Path to a npy file containing training images of B dataset')
-parser.add_argument('--batch_size', type=int, default=1, help='Batch_size')
-parser.add_argument('--lambda_cycle', type=float, default=10.0, help='Weight of cycle loss compared to discriminator loss')
 parser.add_argument('--num_epochs', type=int, required=True, help='Number of training epochs')
-parser.add_argument('--n_critics', type=int, default=5, help='Number of discriminator updates in each iteration')
-parser.add_argument('--top_dir', type=str, required=True, help='The top folder in which training infos are saved')
-parser.add_argument('--learning_rate', type=float, default=0.0002, help='Learning rate')
-parser.add_argument('--skip', type=lambda x: x == 'True', default=False, help='Whether to use a skip connection in generators')
-parser.add_argument('--optimizer', type=str, default='Adam', help='Type of optimizer used')
+parser.add_argument('--folder', type=str, required=True)
+parser.add_argument('--cp', type=int, required=True)
 
 
 opt = parser.parse_args()
 opt_dict = vars(opt)
+
+trained_args = pickle.load(open(join(opt.folder, 'ops.pickle'), 'rb'))
+for arg in trained_args:
+    if arg not in ['folder', 'cp', 'num_epochs']:
+        opt_dict[arg] = trained_args[arg]
 
 ############################################### READ DATA ##################################################################
 trainA = FileLoader(opt.trainA, True)
@@ -119,7 +116,7 @@ saver = tf.train.Saver(max_to_keep=40)
 
 print("Preparing training directory...")
 
-top_dir = join(opt.top_dir, utils.get_time())
+top_dir = join(opt.folder, utils.get_time())
 checkpoints_dir = join(top_dir, 'checkpoints')
 images_dir = join(top_dir, 'images')
 log_dir = join(top_dir, 'log')
@@ -173,14 +170,15 @@ def write_summary(writer, val_dict, step):
 
 # create a session and initialize all variables
 sess = tf.Session()
-sess.run(tf.global_variables_initializer())
+# sess.run(tf.global_variables_initializer())
+saver.restore(sess, join(opt.folder, 'checkpoints', 'epoch_%d.cpkt'%opt.cp))
 
 # create a list of epochs where a checkpoint will be saved
 time_to_save = list(range(1,5)) + list(range(6, 20, 2)) + list(range(20, 100, 5)) + list(range(100, 1001, 10))
 begin_time = time.time()
 
-# begin training
-for _epoch in range(opt.num_epochs):
+# begin training 
+for _epoch in range(opt.cp + 1, opt.num_epochs):
 	# compute learning rate for each epoch
 	if _epoch < 100:
 		current_lr = opt.learning_rate
@@ -191,35 +189,22 @@ for _epoch in range(opt.num_epochs):
 	for _iteration in range(opt.num_iterations):
 		print("Traing epoch %d, iteration %d"%(_epoch, _iteration))
 		for _n_critics in range(opt.n_critics):
-			_, _, A_critic_loss_val, B_critic_loss_val = sess.run(
-															[
-																A_critic_trainer, B_critic_trainer, 
-																A_critic_loss, B_critic_loss
-															],
-															feed_dict={
-																input_tensor_A:trainA.get_batch(1,True),
-																input_tensor_B:trainB.get_batch(1,True),
-																learning_rate:current_lr
-															}
-														)
+			_, A_critic_loss_val, _, B_critic_loss_val = sess.run([A_critic_trainer, A_critic_loss, B_critic_trainer, B_critic_loss],
+											feed_dict={input_tensor_A:trainA.get_batch(1,True),
+													   input_tensor_B:trainB.get_batch(1,True),
+													   learning_rate:current_lr})
 			print("Critic loss A %f, crictic loss B %f"%(A_critic_loss_val, B_critic_loss_val))
 			sess.run(A_critic_clip)
 			sess.run(B_critic_clip)
 
-		_, A_gen_loss_val, A_critic_loss_val, \
-		_, B_gen_loss_val, B_critic_loss_val, \
-		A_critic_gradient_val, B_critic_gradient_val = sess.run(
-															[
-																A_gen_trainer, A_gen_loss, A_critic_loss,
-														 		B_gen_trainer, B_gen_loss, B_critic_loss,
-														 		A_critic_gradient, B_critic_gradient
-														 	],
-															feed_dict={
-																input_tensor_A:trainA.get_batch(1),
-																input_tensor_B:trainB.get_batch(1),
-																learning_rate:current_lr
-															}
-														)
+		_, A_gen_loss_val, A_critic_loss_val, _, B_gen_loss_val, B_critic_loss_val, A_critic_gradient_val, B_critic_gradient_val = \
+											   sess.run([A_gen_trainer, A_gen_loss, A_critic_loss,
+														 B_gen_trainer, B_gen_loss, B_critic_loss,
+														 A_critic_gradient, B_critic_gradient],
+												feed_dict={input_tensor_A:trainA.get_batch(1),
+														   input_tensor_B:trainB.get_batch(1),
+														   learning_rate:current_lr})
+
 
 		write_summary(summary_writer, 
 			{'A_gen_loss':A_gen_loss_val, 'B_gen_loss':B_gen_loss_val, 'A_critic_loss':A_critic_loss_val, 'B_critic_loss':B_critic_loss_val}, 
