@@ -77,18 +77,22 @@ def discriminator(input, scope_name, reuse=False):
 
 def discriminator_improved_wgan(input, scope_name, reuse=False):
 	with tf.variable_scope(scope_name, reuse=reuse):
-		c64 = ops.lrelu(ops.conv2d(input, [4,4,3,64], 'c64/conv', 2, 
-									padding="SAME"), 'c64/lrelu')
+		c64 = ops.conv_lrelu(input, [4,4,3,64], 'c64', 2, 
+									padding="SAME")
 		c128 = ops.conv_lrelu(c64, [4,4,64,128], 'c128', 2, 
 									padding="SAME")
 		c256_1 = ops.conv_lrelu(c128, [4,4,128,256], 'c256_1', 2,
 									padding="SAME")
 		c256_2 = ops.conv_lrelu(c256_1, [4,4,256,256], 'c256_2', 2,
 									padding="SAME")
-		c512 = ops.conv_lrelu(c256_2, [4,4,256,512], 'c512', 2,
+		c256_3 = ops.conv_lrelu(c256_2, [4,4,256,256], 'c256_3', 2,
 									padding="SAME")
-		c512_shape = c512.get_shape().as_list()
-		c_reshape = tf.reshape(c512, [-1, c512_shape[1] * c512_shape[2] * c512_shape[3]])
-		return tf.nn.sigmoid(ops.linear(c_reshape, 1, 'output'))
+
+		c_shape = c256_3.get_shape().as_list()
+		c_reshape = tf.reshape(c256_3, [-1, c_shape[1] * c_shape[2] * c_shape[3]])
+
+		c_linear_1 = ops.lrelu(ops.linear(c_reshape, 512, 'c_linear_1/linear'), 'c_linear_1/lrelu')
+		c_linear_2 = ops.lrelu(ops.linear(c_linear_1, 512, 'c_linear_2/linear'), 'c_linear_2/lrelu')
+		return ops.linear(c_linear_2, 1, 'output')
 		
 

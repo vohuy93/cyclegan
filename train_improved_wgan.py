@@ -30,7 +30,7 @@ parser.add_argument('--n_critics', type=int, default=5, help='Number of discrimi
 parser.add_argument('--top_dir', type=str, required=True, help='The top folder in which training infos are saved')
 parser.add_argument('--learning_rate', type=float, default=0.0001, help='Learning rate')
 parser.add_argument('--skip', type=lambda x: x == 'True', default=False, help='Whether to use a skip connection in generators')
-parser.add_argument('--optimizer', type=str, default='RMSProp', help='Type of optimizer used')
+parser.add_argument('--optimizer', type=str, default='Adam', help='Type of optimizer used')
 
 
 opt = parser.parse_args()
@@ -61,42 +61,45 @@ cycle_A = generator(fake_B, 'generator_A', reuse=True, skip=opt.skip)
 cycle_B = generator(fake_A, 'generator_B', reuse=True, skip=opt.skip)
 
 
-# define discriminator_A's loss
-eps_A_critic = np.array(np.random.uniform(0,1,[opt.batch_size]), dtype=np.float32)
-x_hat_A_critic = tf.transpose(tf.transpose(input_tensor_A) * eps_A_critic) + \
-				 tf.transpose(tf.transpose(fake_A) * (1 - eps_A_critic))
+################################ define discriminator_A's loss ######################################
+eps_A_critic = tf.random_uniform(shape=[opt.batch_size,1,1,1], minval=0.0, maxval=1.0)
+x_hat_A_critic = eps_A_critic*input_tensor_A + (1.0 - eps_A_critic)*fake_A 
 
 fake_A_critic = models.discriminator_improved_wgan(fake_A, 'discriminator_A')
 real_A_critic = models.discriminator_improved_wgan(input_tensor_A, 'discriminator_A', reuse=True)
 fake_hat_A_critic = models.discriminator_improved_wgan(x_hat_A_critic, 'discriminator_A', reuse=True)
 
 
-grad_A_critic = tf.gradients(fake_hat_A_critic, x_hat_A_critic)
-grad_constraint_A_critic = tf.reduce_mean([(tf.norm(grad_A_critic[0][i]) - 1)**2 for i in range(opt.batch_size)])
+grad_A_critic = tf.gradients(fake_hat_A_critic, x_hat_A_critic)[0]
+slope_A_critic = tf.sqrt(tf.reduce_sum(grad_A_critic**2, reduction_indices=[1,2,3]))
+grad_constraint_A_critic = tf.reduce_mean((slope_A_critic - 1.0)**2)
 
-A_critic_loss = tf.reduce_mean(fake_A_critic - real_A_critic) + opt.lambda_grad * grad_constraint_A_critic
+A_critic_loss = tf.reduce_mean(fake_A_critic - real_A_critic)/100. + opt.lambda_grad * grad_constraint_A_critic
 
 
-# define discriminator_B's loss
-eps_B_critic = np.array(np.random.uniform(0,1,[opt.batch_size]), dtype=np.float32)
-x_hat_B_critic = tf.transpose(tf.transpose(input_tensor_B) * eps_B_critic) + \
-				 tf.transpose(tf.transpose(fake_B) * (1-eps_B_critic))
+################################ define discriminator_B's loss ######################################
+eps_B_critic = tf.random_uniform(shape=[opt.batch_size,1,1,1], minval=0.0, maxval=1.0)
+x_hat_B_critic = eps_B_critic*input_tensor_B + (1.0-eps_B_critic)*fake_B
 
 fake_B_critic = models.discriminator_improved_wgan(fake_B, 'discriminator_B')
 real_B_critic = models.discriminator_improved_wgan(input_tensor_B, 'discriminator_B', reuse=True)
 fake_hat_B_critic = models.discriminator_improved_wgan(x_hat_B_critic, 'discriminator_B', reuse=True)
 
 
-grad_B_critic = tf.gradients(fake_hat_B_critic, x_hat_B_critic)
-grad_constraint_B_critic = tf.reduce_mean([(tf.norm(grad_B_critic[0][i]) - 1)**2 for i in range(opt.batch_size)])
+grad_B_critic = tf.gradients(fake_hat_B_critic, x_hat_B_critic)[0]
+slope_B_critic = tf.sqrt(tf.reduce_sum(grad_B_critic**2, reduction_indices=[1,2,3]))
+grad_constraint_B_critic = tf.reduce_mean((slope_B_critic - 1.0)**2)
 
-B_critic_loss = tf.reduce_mean(fake_B_critic - real_B_critic) + opt.lambda_grad * grad_constraint_B_critic
+B_critic_loss = tf.reduce_mean(fake_B_critic - real_B_critic)/100. + opt.lambda_grad * grad_constraint_B_critic
+
+critic_loss = A_critic_loss + B_critic_loss
 
 
-# define losses for generators
+##################################### define losses for generators ####################################
 cycle_loss = tf.reduce_mean(tf.abs(cycle_A - input_tensor_A)) + tf.reduce_mean(tf.abs(cycle_B - input_tensor_B))
-A_gen_loss =  opt.lambda_cycle * cycle_loss - tf.reduce_mean(fake_A)
-B_gen_loss = opt.lambda_cycle * cycle_loss - tf.reduce_mean(fake_B)
+A_gen_loss = opt.lambda_cycle * cycle_loss - tf.reduce_mean(fake_A_critic)/100.
+B_gen_loss = opt.lambda_cycle * cycle_loss - tf.reduce_mean(fake_B_critic)/100.
+gen_loss = opt.lambda_cycle * cycle_loss - tf.reduce_mean(fake_A_critic)/100. - tf.reduce_mean(fake_B_critic)/100.
 
 
 A_gen_var = [var for var in tf.global_variables() if 'generator_A' in var.name]
@@ -104,19 +107,29 @@ B_gen_var = [var for var in tf.global_variables() if 'generator_B' in var.name]
 A_critic_var = [var for var in tf.global_variables() if 'discriminator_A' in var.name]
 B_critic_var = [var for var in tf.global_variables() if 'discriminator_B' in var.name]
 
+gen_vars = [var for var in tf.trainable_variables() if 'generator_' in var.name]
+critic_vars = [var for var in tf.trainable_variables() if 'discriminator_' in var.name]
+
 
 
 learning_rate = tf.placeholder(tf.float32, [])
 if opt.optimizer == 'Adam':
-	A_gen_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0., beta2=0.999).minimize(A_gen_loss, var_list=A_gen_var)
-	B_gen_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0., beta2=0.999).minimize(B_gen_loss, var_list=B_gen_var)
-	A_critic_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0., beta2=0.999).minimize(A_critic_loss, var_list=A_critic_var)
-	B_critic_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0., beta2=0.999).minimize(B_critic_loss, var_list=B_critic_var)
+	A_gen_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0.5, beta2=0.9).minimize(A_gen_loss, var_list=A_gen_var)
+	B_gen_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0.5, beta2=0.9).minimize(B_gen_loss, var_list=B_gen_var)
+	A_critic_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0.5, beta2=0.9).minimize(A_critic_loss, var_list=A_critic_var)
+	B_critic_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0.5, beta2=0.9).minimize(B_critic_loss, var_list=B_critic_var)
+
+	gen_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0.5, beta2=0.9).minimize(gen_loss, var_list=gen_vars)
+	critic_trainer = tf.train.AdamOptimizer(learning_rate, beta1=0.5, beta2=0.9).minimize(critic_loss, var_list=critic_vars)
+
 else:
 	A_gen_trainer = tf.train.RMSPropOptimizer(learning_rate).minimize(A_gen_loss, var_list=A_gen_var)
 	B_gen_trainer = tf.train.RMSPropOptimizer(learning_rate).minimize(B_gen_loss, var_list=B_gen_var)
 	A_critic_trainer = tf.train.RMSPropOptimizer(learning_rate).minimize(A_critic_loss, var_list=A_critic_var)
 	B_critic_trainer = tf.train.RMSPropOptimizer(learning_rate).minimize(B_critic_loss, var_list=B_critic_var)
+
+	gen_trainer = tf.train.RMSPropOptimizer(learning_rate, beta1=0.5, beta2=0.9).minimize(gen_loss, var_list=gen_vars)
+	critic_trainer = tf.train.RMSPropOptimizer(learning_rate, beta1=0.5, beta2=0.9).minimize(critic_loss, var_list=critic_vars)
 
 
 for var in tf.global_variables():
@@ -186,6 +199,7 @@ def write_summary(writer, val_dict, step):
 sess = tf.Session()
 sess.run(tf.global_variables_initializer())
 
+
 time_to_save = list(range(1,5)) + list(range(6, 20, 2)) + list(range(20, 100, 5)) + list(range(100, 1001, 10))
 begin_time = time.time()
 for _epoch in range(opt.num_epochs):
@@ -196,30 +210,36 @@ for _epoch in range(opt.num_epochs):
 	for _iteration in range(opt.num_iterations):
 		# train critics
 		for _n_critics in range(opt.n_critics):
-			_, A_critic_loss_val, _, B_critic_loss_val = sess.run(
-											[A_critic_trainer, A_critic_loss, B_critic_trainer, B_critic_loss],
-											feed_dict={input_tensor_A:trainA.get_batch(1,True),
-													   input_tensor_B:trainB.get_batch(1,True),
+			_, A_critic_loss_val, B_critic_loss_val = sess.run(
+											[critic_trainer, A_critic_loss, B_critic_loss],
+											feed_dict={input_tensor_A:trainA.get_batch(opt.batch_size, randomize=True),
+													   input_tensor_B:trainB.get_batch(opt.batch_size, randomize=True),
 													   learning_rate:current_lr})
+			print("A_critic_loss: %f B_critic_loss: %f"%(A_critic_loss_val, B_critic_loss_val))
 
-		_, A_gen_loss_val, A_critic_loss_val, grad_constraint_A_critic_val, \
-		_, B_gen_loss_val, B_critic_loss_val, grad_constraint_B_critic_val = \
-											   sess.run([A_gen_trainer, A_gen_loss, A_critic_loss, grad_constraint_A_critic,
-														 B_gen_trainer, B_gen_loss, B_critic_loss, grad_constraint_B_critic],
-												feed_dict={input_tensor_A:trainA.get_batch(1),
-														   input_tensor_B:trainB.get_batch(1),
+		_, critic_loss_val, gen_loss_val, \
+		A_gen_loss_val, A_critic_loss_val, grad_constraint_A_critic_val, \
+		B_gen_loss_val, B_critic_loss_val, grad_constraint_B_critic_val = \
+											   sess.run([gen_trainer, critic_loss, gen_loss,
+											   			 A_gen_loss, A_critic_loss, grad_constraint_A_critic,
+														 B_gen_loss, B_critic_loss, grad_constraint_B_critic],
+												feed_dict={input_tensor_A:trainA.get_batch(opt.batch_size),
+														   input_tensor_B:trainB.get_batch(opt.batch_size),
 														   learning_rate:current_lr})
 
 
 		write_summary(summary_writer, 
-			{'A_gen_loss':A_gen_loss_val, 'B_gen_loss':B_gen_loss_val, 
+			{'gen_loss':gen_loss_val, 'critic_loss':critic_loss_val,
+			 'A_gen_loss':A_gen_loss_val, 'B_gen_loss':B_gen_loss_val, 
 			 'A_critic_loss':A_critic_loss_val, 'B_critic_loss':B_critic_loss_val,
 			 'grad_constraint_A_critic':grad_constraint_A_critic_val,
 			 'grad_constraint_B_critic':grad_constraint_B_critic_val}, 
 			_iteration + _epoch * opt.num_iterations + 1)
 
-		print("A_gen_loss: %f ## B_gen_loss: %f ## A_critic_loss: %f ## B_critic_loss: %f ## grad_constraint_A_critic: %f ## grad_constraint_B_critic: %f\n"%(
-				A_gen_loss_val, B_gen_loss_val, A_critic_loss_val, B_critic_loss_val,
+		print("gen_loss: %f critic_loss: %f A_gen_loss: %f ## B_gen_loss: %f ## A_critic_loss: %f ## B_critic_loss: %f ## grad_constraint_A_critic: %f ## grad_constraint_B_critic: %f\n"%(
+				gen_loss_val, critic_loss_val,
+				A_gen_loss_val, B_gen_loss_val, 
+				A_critic_loss_val, B_critic_loss_val,
 				grad_constraint_A_critic_val, grad_constraint_B_critic_val))
 		print("Time is %f"%(time.time() - begin_time))
 	if _epoch+1 in time_to_save:
