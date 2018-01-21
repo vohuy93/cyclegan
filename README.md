@@ -1,3 +1,3 @@
 # cyclegan
 
-This project aims to re-implement the method proposed in the paper "Unpaired image-to-image translation by generative adversarial network". Some modifications are also introduced to improve the stability and the final result of the method. 
+This project aims to re-implement the model CycleGAN proposed in the paper "Unpaired image-to-image translation using cycle-consistent adversarial networks". A variant of CycleGAN using WGAN is also given. The download_cyclegan_dataset.sh file is taken from the author's github https://github.com/junyanz/CycleGAN.
